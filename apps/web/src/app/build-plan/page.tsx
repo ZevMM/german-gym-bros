@@ -322,7 +322,7 @@ export default function BuildPlan() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-gray-600 pb-24">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-gray-600 pb-6">
               {planData.map((day: any, i: number) => (
                 <div key={i} className="bg-[#363d31] rounded-xl p-2 border border-white/5 shadow-sm">
                   <h3 className="text-[#fbbf24] font-bold text-lg mb-2 border-b border-white/10 pb-2">Day {day.day}</h3>
