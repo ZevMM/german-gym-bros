@@ -8,7 +8,7 @@ from engine import (
     export_program_to_text,
     WorkoutSession
 )
-from database import init_db, save_program_to_db
+from database import init_db, save_program_to_db, get_latest_program, delete_workout
 
 app = FastAPI()
 
@@ -39,6 +39,22 @@ async def save_plan(request: SavePlanRequest):
     try:
         program_id = save_program_to_db(request.program_name, request.description, request.plan_data)
         return {"status": "success", "program_id": program_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/active-program")
+async def get_active_program():
+    try:
+        program = get_latest_program()
+        return program
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/workout/{workout_id}")
+async def delete_workout_endpoint(workout_id: int):
+    try:
+        delete_workout(workout_id)
+        return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

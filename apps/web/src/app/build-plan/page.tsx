@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, Star, X, Send } from "lucide-react";
+import { ChevronLeft, Star, X, Send, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 
@@ -20,7 +20,7 @@ export default function BuildPlan() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   };
 
   useEffect(() => {
@@ -30,12 +30,47 @@ export default function BuildPlan() {
   const [planData, setPlanData] = useState<any>(null);
   const [showPlan, setShowPlan] = useState(false);
 
+  // Load state from sessionStorage on mount
+  useEffect(() => {
+    const savedMessages = sessionStorage.getItem('chat_messages');
+    const savedState = sessionStorage.getItem('chat_backend_state');
+    const savedPlan = sessionStorage.getItem('chat_plan_data');
+
+    if (savedMessages) {
+      setMessages(JSON.parse(savedMessages));
+    }
+    if (savedState) {
+      setBackendState(JSON.parse(savedState));
+    }
+    if (savedPlan) {
+      setPlanData(JSON.parse(savedPlan));
+    }
+  }, []);
+
+  // Save state to sessionStorage on change
+  useEffect(() => {
+    if (messages.length > 0) {
+      sessionStorage.setItem('chat_messages', JSON.stringify(messages));
+    }
+    if (backendState) {
+      sessionStorage.setItem('chat_backend_state', JSON.stringify(backendState));
+    }
+    if (planData) {
+      sessionStorage.setItem('chat_plan_data', JSON.stringify(planData));
+    }
+  }, [messages, backendState, planData]);
+
   const handleStartOver = async () => {
     setMessages([]);
     setBackendState(null);
     setPlanData(null);
     setShowPlan(false);
     setInput("");
+
+    // Clear session storage
+    sessionStorage.removeItem('chat_messages');
+    sessionStorage.removeItem('chat_backend_state');
+    sessionStorage.removeItem('chat_plan_data');
 
     // Re-init chat
     try {
@@ -68,7 +103,7 @@ export default function BuildPlan() {
       if (!res.ok) throw new Error("Failed to save plan");
 
       // Success - navigate home
-      router.push('/');
+      router.push('/weekly-plan');
     } catch (error) {
       console.error("Error saving plan:", error);
       alert("Failed to save plan. Please try again.");
@@ -77,9 +112,12 @@ export default function BuildPlan() {
     }
   };
 
-  // Initial greeting
+  // Initial greeting - only if no saved messages
   useEffect(() => {
     const initChat = async () => {
+      // Check if we already have messages (loaded from session)
+      if (sessionStorage.getItem('chat_messages')) return;
+
       try {
         const res = await fetch("http://localhost:8000/chat", {
           method: "POST",
@@ -93,6 +131,7 @@ export default function BuildPlan() {
         console.error("Failed to connect to chat backend", error);
       }
     };
+
     initChat();
   }, []);
 
@@ -133,26 +172,32 @@ export default function BuildPlan() {
       <div className="w-full max-w-[400px] bg-[#22281f] rounded-[30px] overflow-hidden shadow-2xl relative h-[850px] flex flex-col text-white border border-[#1a1f18]">
 
         {/* Header */}
-        <header className="px-4 py-4 flex items-center gap-3 pt-12 shrink-0">
-          <div className="w-10 h-10 bg-black border border-[#fbbf24] flex items-center justify-center rounded-sm shrink-0">
-            <Star className="text-[#fbbf24] fill-[#fbbf24]" size={20} />
-            <span className="text-[6px] text-white absolute mt-6 font-bold tracking-tighter">U.S.ARMY</span>
+        <header className="px-4 py-4 flex items-center justify-between pt-12 shrink-0 bg-[#1a1f18] border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-black border border-[#fbbf24] flex items-center justify-center rounded-sm shrink-0">
+              <Star className="text-[#fbbf24] fill-[#fbbf24]" size={20} />
+              <span className="text-[6px] text-white absolute mt-6 font-bold tracking-tighter">U.S.ARMY</span>
+            </div>
+            <div className="h-[44px] flex items-center">
+              <h1 className="text-xl font-semibold tracking-wide">Build New Plan</h1>
+            </div>
           </div>
-
-          <Link href="/" className="text-white hover:text-gray-300 transition-colors">
-            <ChevronLeft size={28} strokeWidth={2.5} />
-          </Link>
-
-          <h1 className="text-xl font-semibold tracking-wide ml-1">Build New Plan</h1>
+          <button
+            onClick={handleStartOver}
+            className="text-gray-400 hover:text-white transition-colors p-2"
+            title="Restart Chat"
+          >
+            <RefreshCw size={20} />
+          </button>
         </header>
 
         {/* Objective & Constraints Bar */}
-        <div className="bg-[#394d26] py-2 flex items-center justify-center mb-4 mx-4 rounded-md shadow-sm shrink-0">
+        <div className="bg-[#394d26] py-2 flex items-center justify-center m-4 rounded-md shadow-sm shrink-0">
           <h2 className="text-white text-lg font-medium">Objective & Constraints</h2>
         </div>
 
         {/* Main Content */}
-        <main className="flex-1 px-6 flex flex-col overflow-hidden relative">
+        <main className="flex-1 px-6 flex flex-col overflow-hidden relative pb-20">
 
           {/* Static Form Fields (Visual Only for now as per design) */}
           <div className="space-y-4 mb-6 shrink-0">
@@ -227,7 +272,7 @@ export default function BuildPlan() {
             </div>
 
             {/* Input Area */}
-            <div className="pt-4 pb-6">
+            <div className="pt-2 pb-2">
               <div className="relative">
                 <input
                   type="text"
@@ -247,37 +292,50 @@ export default function BuildPlan() {
             </div>
           </div>
 
-          {/* Plan Overlay */}
-          {showPlan && planData && (
-            <div className="absolute inset-0 bg-[#22281f] z-50 flex flex-col animate-in fade-in slide-in-from-bottom-10 duration-300">
-              <div className="p-4 flex items-center justify-between bg-[#394d26] shadow-md shrink-0">
-                <h2 className="text-xl font-bold text-white">Your Squad Plan</h2>
-                <button onClick={() => setShowPlan(false)} className="p-2 text-white/80 hover:text-white">
-                  <X size={24} />
-                </button>
-              </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-gray-600">
-                {planData.map((day: any, i: number) => (
-                  <div key={i} className="bg-[#363d31] rounded-xl p-5 border border-white/5 shadow-sm">
-                    <h3 className="text-[#fbbf24] font-bold text-lg mb-3 border-b border-white/10 pb-2">Day {day.day}</h3>
 
+        </main>
+
+        {/* Bottom Navigation */}
+        <nav className="absolute bottom-0 w-full bg-[#1a1f18] border-t border-white/10 flex z-40">
+          <Link href="/" className="flex-1 py-4 flex flex-col items-center justify-center gap-1 hover:bg-[#2a3026] transition-colors">
+            <span className="text-xs font-medium text-gray-400 leading-tight text-center">Daily<br />Plan</span>
+          </Link>
+          <Link href="/weekly-plan" className="flex-1 py-4 flex flex-col items-center justify-center gap-1 hover:bg-[#2a3026] transition-colors">
+            <span className="text-xs font-medium text-gray-400 leading-tight text-center">Weekly<br />Plan</span>
+          </Link>
+          <button className="flex-1 py-4 flex flex-col items-center justify-center gap-1 bg-[#2a3026]">
+            <span className="text-xs font-bold text-white leading-tight text-center">Build<br />New Plan</span>
+          </button>
+          <button className="flex-1 py-4 flex flex-col items-center justify-center gap-1 hover:bg-[#2a3026] transition-colors">
+            <span className="text-xs font-medium text-gray-400 leading-tight text-center">Squad<br />Info</span>
+          </button>
+        </nav>
+
+        {/* Plan Overlay - Moved to root to cover everything */}
+        {showPlan && planData && (
+          <div className="absolute inset-0 bg-[#22281f] z-50 flex flex-col animate-in fade-in slide-in-from-bottom-10 duration-300">
+            <div className="p-4 flex items-center justify-between bg-[#394d26] shadow-md shrink-0">
+              <h2 className="text-xl font-bold text-white">Your Squad Plan</h2>
+              <button onClick={() => setShowPlan(false)} className="p-2 text-white/80 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-gray-600 pb-24">
+              {planData.map((day: any, i: number) => (
+                <div key={i} className="bg-[#363d31] rounded-xl p-2 border border-white/5 shadow-sm">
+                  <h3 className="text-[#fbbf24] font-bold text-lg mb-2 border-b border-white/10 pb-2">Day {day.day}</h3>
+
+                  <div className="space-y-2">
                     {/* Warmup */}
                     {day.warmup && day.warmup.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-2">Warmup</h4>
-                        <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
-                          {day.warmup.slice(0, 3).map((w: string, idx: number) => (
-                            <li key={idx}>{w}</li>
-                          ))}
-                          {day.warmup.length > 3 && <li className="text-gray-500 italic">...and {day.warmup.length - 3} more</li>}
-                        </ul>
-                      </div>
+                      <WarmupSection data={day.warmup} />
                     )}
 
                     {/* Circuits */}
                     {day.circuits && day.circuits.map((circuit: any, cIdx: number) => (
-                      <div key={cIdx} className="mb-4 bg-[#2a3025] rounded-lg p-3">
+                      <div key={cIdx} className="bg-[#2a3025] rounded-lg p-3">
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-white font-medium text-sm">Circuit {cIdx + 1}</span>
                           <span className="text-xs text-[#fbbf24] bg-[#fbbf24]/10 px-2 py-0.5 rounded-full">{circuit.rounds} Rounds</span>
@@ -286,7 +344,7 @@ export default function BuildPlan() {
                           {circuit.exercises.map((ex: any, eIdx: number) => (
                             <div key={eIdx} className="flex justify-between text-sm">
                               <span className="text-gray-200">{ex.name}</span>
-                              <span className="text-gray-400 text-xs">{ex.difficulty}/5</span>
+                              <span className="text-gray-400 text-xs"> {ex.reps} reps</span>
                             </div>
                           ))}
                         </div>
@@ -295,22 +353,47 @@ export default function BuildPlan() {
 
                     {/* Cardio */}
                     {day.cardio && (
-                      <div className="mt-2 p-3 bg-[#394d26]/30 rounded-lg border border-[#394d26]">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[#fbbf24] text-sm font-bold">CARDIO</span>
+                      <div className="p-3 bg-[#394d26]/30 rounded-lg border border-[#394d26]">
+                        <div className="text-[#fbbf24] text-sm font-bold mb-1">CARDIO</div>
+                        <div className="flex justify-between items-center">
                           <span className="text-white text-sm">{day.cardio.type}</span>
+                          <span className="text-gray-400 text-sm">{day.cardio.duration_minutes} mins</span>
                         </div>
-                        <p className="text-gray-300 text-sm">{day.cardio.duration_minutes} mins</p>
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
-        </main>
       </div>
+    </div>
+  );
+}
+
+function WarmupSection({ data }: { data: string[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const displayData = isExpanded ? data : data.slice(0, 3);
+  const hasMore = data.length > 3;
+
+  return (
+    <div className="bg-[#2a3025] rounded-lg p-3">
+      <h4 className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-2">Warmup</h4>
+      <div className="space-y-1">
+        {displayData.map((w, idx) => (
+          <div key={idx} className="text-sm text-gray-300">{w}</div>
+        ))}
+      </div>
+      {hasMore && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-xs text-[#fbbf24] mt-2 hover:underline focus:outline-none"
+        >
+          {isExpanded ? "Show less" : `...and ${data.length - 3} more`}
+        </button>
+      )}
     </div>
   );
 }

@@ -1,7 +1,77 @@
-import { Star, CloudRain, AlertTriangle, Activity } from "lucide-react";
+"use client";
+
+import { Star, CloudRain, AlertTriangle, Activity, Dumbbell } from "lucide-react";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 export default function Home() {
+  const [activeProgram, setActiveProgram] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProgram = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/active-program", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setActiveProgram(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch active program", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProgram();
+  }, []);
+
+  // Helper to render workout components
+  const renderWorkoutTable = (workout: any) => {
+    if (!workout || !workout.components) return null;
+
+    const rows = [];
+
+    // Warmup
+    const warmup = workout.components.find((c: any) => c.component_type === 'warmup');
+    if (warmup && warmup.data) {
+      rows.push({ label: "Warm-up", value: warmup.data.summary || "Standard Warmup" });
+    }
+
+    // Circuits (Strength/Work)
+    const circuits = workout.components.filter((c: any) => c.component_type === 'circuit');
+    if (circuits.length > 0) {
+      rows.push({ label: "Strength", value: `${circuits.length} Circuit(s) - See Details` });
+    }
+
+    // Cardio
+    const cardio = workout.components.find((c: any) => c.component_type === 'cardio');
+    if (cardio && cardio.data) {
+      rows.push({ label: "Conditioning", value: cardio.data.type || "Cardio Session" });
+    }
+
+    // Cool-down (Static for now as it's not always in data)
+    rows.push({ label: "Cool-down", value: "Recovery Drill - 5 mins" });
+
+    return (
+      <div className="border border-white/20 rounded-lg overflow-hidden mb-4 text-sm">
+        {rows.map((row, i) => (
+          <div key={i} className={`flex ${i !== rows.length - 1 ? 'border-b border-white/20' : ''}`}>
+            <div className="w-[100px] bg-[#363d31] p-3 flex items-center justify-center font-medium border-r border-white/20">
+              {row.label}
+            </div>
+            <div className="flex-1 bg-[#22281f] p-3 flex items-center justify-center text-center">
+              {row.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Get today's workout (Day 1 for MVP)
+  const todaysWorkout = activeProgram?.workouts?.[0];
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-black/90 p-4 font-sans">
       {/* Mobile Container */}
@@ -20,44 +90,48 @@ export default function Home() {
 
           <div className="w-full text-center space-y-1">
             <h2 className="text-2xl font-bold">Today’s PT: 0630 - 0800</h2>
-            <p className="text-sm text-gray-300">Objective: ACFT Prep-Strength & Endurance</p>
+            <p className="text-sm text-gray-300">
+              {activeProgram ? `Objective: ${todaysWorkout?.focus || "General Fitness"}` : "No Active Plan"}
+            </p>
           </div>
         </header>
 
         {/* Main Content */}
         <main className="flex-1 px-4 overflow-y-auto pb-24">
 
-          {/* PT Schedule Table */}
-          <div className="border border-white/20 rounded-lg overflow-hidden mb-4 text-sm">
-            {[
-              { label: "Warm-up", value: "Army Prep Drill - 10 mins" },
-              { label: "Strength", value: "Deadlift Progression" },
-              { label: "Conditioning", value: "1.5 mile run" },
-              { label: "Cool-down", value: "Recovery Drill- 5 mins" },
-            ].map((row, i) => (
-              <div key={i} className={`flex ${i !== 3 ? 'border-b border-white/20' : ''}`}>
-                <div className="w-[100px] bg-[#363d31] p-3 flex items-center justify-center font-medium border-r border-white/20">
-                  {row.label}
-                </div>
-                <div className="flex-1 bg-[#22281f] p-3 flex items-center justify-center text-center">
-                  {row.value}
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* PT Schedule Table or Empty State */}
+          {isLoading ? (
+            <div className="flex items-center justify-center h-40 text-gray-400">Loading plan...</div>
+          ) : activeProgram ? (
+            <>
+              {renderWorkoutTable(todaysWorkout)}
 
-          {/* Action Buttons */}
-          <div className="flex gap-2 mb-6">
-            <button className="flex-1 bg-[#394d26] hover:bg-[#4b5f36] py-3 rounded-lg font-medium text-sm transition-colors shadow-sm border border-white/10">
-              Edit Plan
-            </button>
-            <button className="flex-1 bg-[#394d26] hover:bg-[#4b5f36] py-3 rounded-lg font-medium text-sm transition-colors shadow-sm border border-white/10">
-              Auto-Adapt
-            </button>
-            <button className="flex-1 bg-[#394d26] hover:bg-[#4b5f36] py-3 rounded-lg font-medium text-sm transition-colors shadow-sm border border-white/10 leading-tight">
-              Send To Squad
-            </button>
-          </div>
+              {/* Action Buttons */}
+              <div className="flex gap-2 mb-6">
+                <button className="flex-1 bg-[#394d26] hover:bg-[#4b5f36] py-3 rounded-lg font-medium text-sm transition-colors shadow-sm border border-white/10">
+                  Edit Plan
+                </button>
+                <button className="flex-1 bg-[#394d26] hover:bg-[#4b5f36] py-3 rounded-lg font-medium text-sm transition-colors shadow-sm border border-white/10">
+                  Auto-Adapt
+                </button>
+                <button className="flex-1 bg-[#394d26] hover:bg-[#4b5f36] py-3 rounded-lg font-medium text-sm transition-colors shadow-sm border border-white/10 leading-tight">
+                  Send To Squad
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 border border-dashed border-white/20 rounded-xl mb-6 p-6 text-center space-y-4">
+              <Dumbbell className="text-gray-500" size={48} />
+              <div>
+                <h3 className="text-lg font-bold text-white">No Active Plan</h3>
+                <p className="text-sm text-gray-400">Your squad needs a mission. Build a new PT plan to get started.</p>
+              </div>
+              <Link href="/build-plan" className="bg-[#fbbf24] hover:bg-[#d9a51f] text-black font-bold py-3 px-6 rounded-xl shadow-lg transition-colors w-full">
+                Build New Plan
+              </Link>
+            </div>
+          )}
+
 
           {/* Operational Alerts */}
           <section className="mb-6">
@@ -114,9 +188,9 @@ export default function Home() {
           <Link href="/" className="flex-1 py-4 flex flex-col items-center justify-center gap-1 bg-[#2a3026]">
             <span className="text-xs font-bold text-white leading-tight text-center">Daily<br />Plan</span>
           </Link>
-          <button className="flex-1 py-4 flex flex-col items-center justify-center gap-1 hover:bg-[#2a3026] transition-colors">
+          <Link href="/weekly-plan" className="flex-1 py-4 flex flex-col items-center justify-center gap-1 hover:bg-[#2a3026] transition-colors">
             <span className="text-xs font-medium text-gray-400 leading-tight text-center">Weekly<br />Plan</span>
-          </button>
+          </Link>
           <Link href="/build-plan" className="flex-1 py-4 flex flex-col items-center justify-center gap-1 hover:bg-[#2a3026] transition-colors">
             <span className="text-xs font-medium text-gray-400 leading-tight text-center">Build<br />New Plan</span>
           </Link>

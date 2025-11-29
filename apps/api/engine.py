@@ -1,5 +1,5 @@
 import numpy as np
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import List, Dict, Optional, Tuple
 
 # --- DATA STRUCTURES ---
@@ -14,6 +14,7 @@ class Exercise:
     primary_muscles: List[str] = field(default_factory=list)
     activation: Dict[str, float] = field(default_factory=dict)
     instructions: str = ""
+    reps: str = ""  # Added for UI display
 
 @dataclass
 class Circuit:
@@ -527,7 +528,8 @@ def select_exercises(categories: List[str], available_equipment: List[str],
 
         if available:
             # Select exercise (can add logic for variety)
-            selected.append(available[0])
+            # IMPORTANT: Return a COPY so we can modify it (e.g. add reps)
+            selected.append(replace(available[0]))
 
     if num_exercises and len(selected) > num_exercises:
         selected = selected[:num_exercises]
@@ -896,6 +898,13 @@ def weekly_plan(plan_goals: Dict, exercise_library: Dict) -> List[WorkoutSession
         workout_session.cooldown = generate_cooldown()
         detailed_week.append(workout_session)
 
+    # Populate reps for all exercises
+    for workout in detailed_week:
+        for circuit in workout.circuits:
+            for exercise in circuit.exercises:
+                rep_range = get_rep_range(strength_focus, exercise.difficulty)
+                exercise.reps = f"{rep_range[0]}-{rep_range[1]}"
+
     return detailed_week
 
 def format_workout_card(workout: WorkoutSession, strength_focus: str = 'hypertrophy') -> str:
@@ -920,9 +929,15 @@ def format_workout_card(workout: WorkoutSession, strength_focus: str = 'hypertro
         output.append("")
 
         for j, exercise in enumerate(circuit.exercises, 1):
-            rep_range = get_rep_range(strength_focus, exercise.difficulty)
+            # Use pre-calculated reps if available, otherwise calculate
+            if exercise.reps:
+                reps_str = exercise.reps
+            else:
+                rep_range = get_rep_range(strength_focus, exercise.difficulty)
+                reps_str = f"{rep_range[0]}-{rep_range[1]}"
+            
             output.append(f"  {j}. {exercise.name}")
-            output.append(f"     Reps: {rep_range[0]}-{rep_range[1]} | Equipment: {', '.join(exercise.equipment) if exercise.equipment else 'Bodyweight'}")
+            output.append(f"     Reps: {reps_str} | Equipment: {', '.join(exercise.equipment) if exercise.equipment else 'Bodyweight'}")
             if exercise.instructions:
                 output.append(f"     → {exercise.instructions}")
         output.append("")

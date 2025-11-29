@@ -34,4 +34,5 @@ npm run dev
 ## Features
 
 - **Daily Plan**: Dashboard for PT schedules and squad readiness.
-- **Build New Plan**: Interactive AI chat to generate custom workout plans.
+- **Build New Plan**: Interactive AI chat to generate custom workout plans with a full-screen preview.
+- **Weekly Plan**: View and manage your active weekly workout schedule.
