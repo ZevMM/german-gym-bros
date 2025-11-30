@@ -6,13 +6,15 @@ import { useState, useEffect } from "react";
 import { WeatherWidget } from "@/components/weather-widget";
 import { WorkoutDetailView } from "@/components/workout-detail-view";
 
+import { API_URL } from "@/config";
+
 export default function Home() {
   const [activeProgram, setActiveProgram] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProgram = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/active-program?t=${Date.now()}`, { cache: "no-store" });
+      const res = await fetch(`${API_URL}/active-program?t=${Date.now()}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setActiveProgram(data);

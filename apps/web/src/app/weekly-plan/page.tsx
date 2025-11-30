@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 
 import { WorkoutDetailView } from "@/components/workout-detail-view";
+import { API_URL } from "@/config";
 
 export default function WeeklyPlan() {
     const [activeProgram, setActiveProgram] = useState<any>(null);
@@ -13,7 +14,7 @@ export default function WeeklyPlan() {
 
     const fetchProgram = async () => {
         try {
-            const res = await fetch(`http://localhost:8000/active-program?t=${Date.now()}`, { cache: "no-store" });
+            const res = await fetch(`${API_URL}/active-program?t=${Date.now()}`, { cache: "no-store" });
             if (res.ok) {
                 const data = await res.json();
                 setActiveProgram(data);
@@ -44,7 +45,7 @@ export default function WeeklyPlan() {
 
     const handleDelete = async (workoutId: number) => {
         try {
-            const res = await fetch(`http://localhost:8000/workout/${workoutId}`, {
+            const res = await fetch(`${API_URL}/workout/${workoutId}`, {
                 method: "DELETE",
             });
 
@@ -201,7 +202,7 @@ export default function WeeklyPlan() {
                             <div className="pt-4 pb-2">
                                 <HoldToDeleteButton onDelete={async () => {
                                     try {
-                                        const res = await fetch(`http://localhost:8000/program/${activeProgram.id}`, {
+                                        const res = await fetch(`${API_URL}/program/${activeProgram.id}`, {
                                             method: "DELETE",
                                         });
                                         if (res.ok) {

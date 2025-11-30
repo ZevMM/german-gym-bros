@@ -5,6 +5,7 @@ import { X, Plus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
 import { RepsSlider } from "./reps-slider";
 import clsx from "clsx";
+import { API_URL } from "@/config";
 
 interface WorkoutEditViewProps {
     workout: any;
@@ -28,7 +29,7 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const res = await fetch(`http://localhost:8000/workout/${workout.id}`, {
+            const res = await fetch(`${API_URL}/workout/${workout.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ components }),

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 
 import { useRouter } from "next/navigation";
+import { API_URL } from "@/config";
 
 interface Message {
   role: 'ai' | 'user';
@@ -86,7 +87,7 @@ export default function BuildPlan() {
 
     // Re-init chat
     try {
-      const res = await fetch("http://localhost:8000/chat", {
+      const res = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: "", state: null }),
@@ -106,7 +107,7 @@ export default function BuildPlan() {
 
     setIsSaving(true);
     try {
-      const res = await fetch("http://localhost:8000/save-plan", {
+      const res = await fetch(`${API_URL}/save-plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan_data: planData }),
@@ -135,7 +136,7 @@ export default function BuildPlan() {
       if (sessionStorage.getItem('chat_messages')) return;
 
       try {
-        const res = await fetch("http://localhost:8000/chat", {
+        const res = await fetch(`${API_URL}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: "", state: null }),
@@ -160,7 +161,7 @@ export default function BuildPlan() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/chat", {
+      const res = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMsg, state: backendState }),
