@@ -220,7 +220,11 @@ export default function Home() {
         </main>
 
         {/* Bottom Navigation */}
-        <nav className="absolute bottom-0 w-full bg-[#1a1f18] border-t border-white/10 flex">
+        <nav
+          className="absolute bottom-0 w-full bg-[#1a1f18] border-t border-white/10 flex select-none"
+          onContextMenu={(e) => e.preventDefault()}
+          style={{ WebkitTouchCallout: 'none' } as any}
+        >
           <Link href="/" className="flex-1 py-4 flex flex-col items-center justify-center gap-1 bg-[#2a3026]">
             <span className="text-xs font-bold text-white leading-tight text-center">Daily<br />Plan</span>
           </Link>

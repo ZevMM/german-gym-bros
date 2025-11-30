@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { useScrollSave } from "@/hooks/use-scroll-save";
 
 import { WorkoutDetailView } from "@/components/workout-detail-view";
+import { ConfirmationModal } from "@/components/confirmation-modal";
 import { getCachedProgram, setCachedProgram } from "@/lib/program-cache";
 import { API_URL } from "@/config";
 
@@ -63,6 +64,15 @@ export default function WeeklyPlan() {
     }, []);
 
     const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+    const [confirmationModal, setConfirmationModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        isDestructive?: boolean;
+        confirmText?: string;
+        singleButton?: boolean;
+    } | null>(null);
 
     const handleDelete = async (workoutId: number) => {
         try {
@@ -75,11 +85,25 @@ export default function WeeklyPlan() {
                 fetchProgram(true);
                 setConfirmDeleteId(null);
             } else {
-                alert("Failed to delete workout");
+                setConfirmationModal({
+                    isOpen: true,
+                    title: "Error",
+                    message: "Failed to delete workout",
+                    onConfirm: () => { },
+                    confirmText: "OK",
+                    singleButton: true
+                });
             }
         } catch (error) {
             console.error("Error deleting workout", error);
-            alert("Error deleting workout");
+            setConfirmationModal({
+                isOpen: true,
+                title: "Error",
+                message: "Error deleting workout",
+                onConfirm: () => { },
+                confirmText: "OK",
+                singleButton: true
+            });
         }
     };
 
@@ -175,7 +199,7 @@ export default function WeeklyPlan() {
                                         <div className="space-y-2">
                                             {day.components.map((comp: any, i: number) => (
                                                 <div key={i}>
-                                                    {comp.component_type === 'warmup' && comp.data && comp.data.length > 0 && (
+                                                    {comp.component_type === 'warmup' && comp.data && comp.data.filter((s: string) => s.trim()).length > 0 && (
                                                         <WarmupSection data={comp.data} />
                                                     )}
 
@@ -209,7 +233,7 @@ export default function WeeklyPlan() {
                                                         </div>
                                                     )}
 
-                                                    {comp.component_type === 'cooldown' && comp.data && comp.data.length > 0 && (
+                                                    {comp.component_type === 'cooldown' && comp.data && comp.data.filter((s: string) => s.trim()).length > 0 && (
                                                         <WarmupSection data={comp.data} title="Cooldown" />
                                                     )}
                                                 </div>
@@ -227,13 +251,27 @@ export default function WeeklyPlan() {
                                             method: "DELETE",
                                         });
                                         if (res.ok) {
-                                            fetchProgram();
+                                            fetchProgram(true);
                                         } else {
-                                            alert("Failed to delete program");
+                                            setConfirmationModal({
+                                                isOpen: true,
+                                                title: "Error",
+                                                message: "Failed to delete program",
+                                                onConfirm: () => { },
+                                                confirmText: "OK",
+                                                singleButton: true
+                                            });
                                         }
                                     } catch (error) {
                                         console.error("Error deleting program", error);
-                                        alert("Error deleting program");
+                                        setConfirmationModal({
+                                            isOpen: true,
+                                            title: "Error",
+                                            message: "Error deleting program",
+                                            onConfirm: () => { },
+                                            confirmText: "OK",
+                                            singleButton: true
+                                        });
                                     }
                                 }} />
                             </div>
@@ -254,7 +292,11 @@ export default function WeeklyPlan() {
                 </main>
 
                 {/* Bottom Navigation */}
-                <nav className="absolute bottom-0 w-full bg-[#1a1f18] border-t border-white/10 flex">
+                <nav
+                    className="absolute bottom-0 w-full bg-[#1a1f18] border-t border-white/10 flex select-none"
+                    onContextMenu={(e) => e.preventDefault()}
+                    style={{ WebkitTouchCallout: 'none' } as any}
+                >
                     <Link href="/" className="flex-1 py-4 flex flex-col items-center justify-center gap-1 hover:bg-[#2a3026] transition-colors">
                         <span className="text-xs font-medium text-gray-400 leading-tight text-center">Daily<br />Plan</span>
                     </Link>
@@ -275,6 +317,20 @@ export default function WeeklyPlan() {
                         workout={selectedWorkout}
                         onClose={() => setSelectedWorkout(null)}
                         onRefresh={() => fetchProgram(true)}
+                    />
+                )}
+
+                {/* Confirmation Modal */}
+                {confirmationModal && (
+                    <ConfirmationModal
+                        isOpen={confirmationModal.isOpen}
+                        onClose={() => setConfirmationModal(null)}
+                        onConfirm={confirmationModal.onConfirm}
+                        title={confirmationModal.title}
+                        message={confirmationModal.message}
+                        confirmText={confirmationModal.confirmText}
+                        isDestructive={confirmationModal.isDestructive}
+                        singleButton={confirmationModal.singleButton}
                     />
                 )}
 
@@ -400,8 +456,9 @@ function HoldToDeleteButton({ onDelete }: { onDelete: () => void }) {
 }
 
 function WarmupSection({ data, title = "Warmup" }: { data: string[], title?: string }) {
-    const displayData = data.slice(0, 3);
-    const hasMore = data.length > 3;
+    const validData = data.filter(s => s.trim());
+    const displayData = validData.slice(0, 3);
+    const hasMore = validData.length > 3;
 
     return (
         <div className="bg-[#394d26]/30 rounded-lg p-3 border border-[#394d26]">
@@ -413,7 +470,7 @@ function WarmupSection({ data, title = "Warmup" }: { data: string[], title?: str
             </div>
             {hasMore && (
                 <div className="text-xs text-gray-500 mt-2 italic">
-                    ...and {data.length - 3} more
+                    ...and {validData.length - 3} more
                 </div>
             )}
         </div>

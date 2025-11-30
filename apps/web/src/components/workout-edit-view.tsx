@@ -75,6 +75,7 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
         onConfirm: () => void;
         isDestructive?: boolean;
         confirmText?: string;
+        singleButton?: boolean;
     } | null>(null);
 
     // Deep compare to check dirty state
@@ -98,11 +99,25 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
             if (res.ok) {
                 await onSaveSuccess();
             } else {
-                alert("Failed to save workout");
+                setConfirmationModal({
+                    isOpen: true,
+                    title: "Error",
+                    message: "Failed to save workout",
+                    onConfirm: () => { },
+                    confirmText: "OK",
+                    singleButton: true
+                });
             }
         } catch (error) {
             console.error("Error saving workout", error);
-            alert("Error saving workout");
+            setConfirmationModal({
+                isOpen: true,
+                title: "Error",
+                message: "Error saving workout",
+                onConfirm: () => { },
+                confirmText: "OK",
+                singleButton: true
+            });
         } finally {
             setIsSaving(false);
         }
@@ -308,7 +323,7 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
                     </div>
                 )}
 
-                <AnimatePresence mode="popLayout">
+                <AnimatePresence mode="popLayout" initial={false}>
                     {components.filter(c => c.component_type === 'circuit').map((comp, i) => (
                         <motion.div
                             layout
@@ -381,7 +396,7 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
                                                 key={ex._ui_id || `${comp._ui_id}-${exIdx}`}
                                                 onDelete={() => removeExercise(comp._ui_id, exIdx)}
                                             >
-                                                <div className="p-3 flex flex-col gap-2">
+                                                <div className="p-3 flex flex-col gap-2 select-none">
                                                     <div className="flex items-start justify-between gap-4">
                                                         <input
                                                             type="text"
@@ -398,19 +413,23 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
                                                         </button>
                                                     </div>
 
-                                                    {/* Equipment Chips */}
                                                     <div className="flex flex-wrap gap-2 items-center">
-                                                        {(ex.equipment || []).map((eq: string, eqIdx: number) => (
-                                                            <span key={eqIdx} className="inline-flex items-center gap-1 text-[10px] bg-white/10 text-gray-300 px-2 py-0.5 rounded-full capitalize">
-                                                                {eq}
-                                                                <button
+                                                        <AnimatePresence initial={false}>
+                                                            {(ex.equipment || []).map((eq: string, eqIdx: number) => (
+                                                                <motion.button
+                                                                    initial={{ scale: 0.8, opacity: 0 }}
+                                                                    animate={{ scale: 1, opacity: 1 }}
+                                                                    exit={{ scale: 0.8, opacity: 0 }}
+                                                                    transition={{ duration: 0.2 }}
+                                                                    key={eq}
                                                                     onClick={() => removeEquipment(comp._ui_id, exIdx, eq)}
-                                                                    className="hover:text-white"
+                                                                    className="inline-flex items-center gap-1 text-[10px] bg-white/10 text-gray-300 px-2 py-0.5 rounded-full capitalize hover:bg-red-500/20 hover:text-red-300 transition-colors"
                                                                 >
+                                                                    {eq}
                                                                     <X size={10} />
-                                                                </button>
-                                                            </span>
-                                                        ))}
+                                                                </motion.button>
+                                                            ))}
+                                                        </AnimatePresence>
                                                         <input
                                                             type="text"
                                                             placeholder="+ Add Eq"
@@ -505,6 +524,7 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
                     message={confirmationModal.message}
                     confirmText={confirmationModal.confirmText}
                     isDestructive={confirmationModal.isDestructive}
+                    singleButton={confirmationModal.singleButton}
                 />
             )}
         </div>

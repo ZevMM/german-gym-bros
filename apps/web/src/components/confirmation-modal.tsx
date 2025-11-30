@@ -11,6 +11,7 @@ interface ConfirmationModalProps {
     confirmText?: string;
     cancelText?: string;
     isDestructive?: boolean;
+    singleButton?: boolean;
 }
 
 export function ConfirmationModal({
@@ -21,7 +22,8 @@ export function ConfirmationModal({
     message,
     confirmText = "Confirm",
     cancelText = "Cancel",
-    isDestructive = false
+    isDestructive = false,
+    singleButton = false
 }: ConfirmationModalProps) {
     return (
         <AnimatePresence>
@@ -42,20 +44,22 @@ export function ConfirmationModal({
                         </div>
 
                         <div className="flex gap-3">
-                            <button
-                                onClick={onClose}
-                                className="flex-1 py-3 rounded-xl bg-white/5 text-white font-medium hover:bg-white/10 transition-colors"
-                            >
-                                {cancelText}
-                            </button>
+                            {!singleButton && (
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 py-3 rounded-xl bg-white/5 text-white font-medium hover:bg-white/10 transition-colors"
+                                >
+                                    {cancelText}
+                                </button>
+                            )}
                             <button
                                 onClick={() => {
                                     onConfirm();
                                     onClose();
                                 }}
                                 className={`flex-1 py-3 rounded-xl font-bold transition-colors ${isDestructive
-                                        ? "bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20"
-                                        : "bg-[#fbbf24] text-black hover:bg-[#d9a51f]"
+                                    ? "bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20"
+                                    : "bg-[#fbbf24] text-black hover:bg-[#d9a51f]"
                                     }`}
                             >
                                 {confirmText}

@@ -54,21 +54,25 @@ export function WorkoutDetailView({ workout, onClose, onRefresh }: { workout: an
             <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-gray-600 pb-6">
 
                 {/* Warmup Section */}
-                {warmups.length > 0 && (
+                {warmups.length > 0 && warmups.some((w: any) => w.data.some((s: string) => s.trim())) && (
                     <div className="space-y-3">
                         <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider border-b border-white/10 pb-1">Warm Up</h3>
-                        {warmups.map((w: any, i: number) => (
-                            <div key={i} className="bg-[#363d31] rounded-xl p-4 border border-white/5 shadow-sm">
-                                <ul className="space-y-2">
-                                    {w.data.map((item: string, idx: number) => (
-                                        <li key={idx} className="flex items-start gap-2 text-sm text-gray-200">
-                                            <span className="text-[#fbbf24] h-5 flex items-center">•</span>
-                                            <span>{item}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        ))}
+                        {warmups.map((w: any, i: number) => {
+                            const validData = w.data.filter((s: string) => s.trim());
+                            if (validData.length === 0) return null;
+                            return (
+                                <div key={i} className="bg-[#363d31] rounded-xl p-4 border border-white/5 shadow-sm">
+                                    <ul className="space-y-2">
+                                        {validData.map((item: string, idx: number) => (
+                                            <li key={idx} className="flex items-start gap-2 text-sm text-gray-200">
+                                                <span className="text-[#fbbf24] h-5 flex items-center">•</span>
+                                                <span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -174,21 +178,25 @@ export function WorkoutDetailView({ workout, onClose, onRefresh }: { workout: an
                 )}
 
                 {/* Cooldown Section */}
-                {cooldowns.length > 0 && (
+                {cooldowns.length > 0 && cooldowns.some((w: any) => w.data.some((s: string) => s.trim())) && (
                     <div className="space-y-3">
                         <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider border-b border-white/10 pb-1">Cooldown</h3>
-                        {cooldowns.map((w: any, i: number) => (
-                            <div key={i} className="bg-[#363d31] rounded-xl p-4 border border-white/5 shadow-sm">
-                                <ul className="space-y-2">
-                                    {w.data.map((item: string, idx: number) => (
-                                        <li key={idx} className="flex items-start gap-2 text-sm text-gray-200">
-                                            <span className="text-[#fbbf24] h-5 flex items-center">•</span>
-                                            <span>{item}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        ))}
+                        {cooldowns.map((w: any, i: number) => {
+                            const validData = w.data.filter((s: string) => s.trim());
+                            if (validData.length === 0) return null;
+                            return (
+                                <div key={i} className="bg-[#363d31] rounded-xl p-4 border border-white/5 shadow-sm">
+                                    <ul className="space-y-2">
+                                        {validData.map((item: string, idx: number) => (
+                                            <li key={idx} className="flex items-start gap-2 text-sm text-gray-200">
+                                                <span className="text-[#fbbf24] h-5 flex items-center">•</span>
+                                                <span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
 

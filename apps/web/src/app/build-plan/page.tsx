@@ -1,12 +1,24 @@
+
 "use client";
 
-import { ChevronLeft, Star, X, Send, RefreshCw } from "lucide-react";
+import { ChevronLeft, Star, X, Send, RefreshCw, ArrowLeft, Dumbbell, Loader2, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
+import { ConfirmationModal } from "@/components/confirmation-modal";
+import { setCachedProgram } from "@/lib/program-cache";
 import { useScrollSave } from "@/hooks/use-scroll-save";
 
 import { useRouter } from "next/navigation";
-import { API_URL } from "@/config";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// In-memory store for chat state (persists across navigation, resets on refresh)
+let chatStore: {
+  messages: any[];
+  backendState: any;
+  planData: any;
+  isAdded: boolean;
+  input: string;
+} | null = null;
 
 interface Message {
   role: 'ai' | 'user';
@@ -37,45 +49,41 @@ export default function BuildPlan() {
   const [showPlan, setShowPlan] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDestructive?: boolean;
+    confirmText?: string;
+    singleButton?: boolean;
+  } | null>(null);
   const scrollRef = useScrollSave("chat-scroll", isLoaded);
 
-  // Load state from sessionStorage on mount
+  // Load state from in-memory store on mount
   useEffect(() => {
-    const savedMessages = sessionStorage.getItem('chat_messages');
-    const savedState = sessionStorage.getItem('chat_backend_state');
-    const savedPlan = sessionStorage.getItem('chat_plan_data');
-    const savedIsAdded = sessionStorage.getItem('chat_plan_added');
-
-    if (savedMessages) {
-      setMessages(JSON.parse(savedMessages));
-    }
-    if (savedState) {
-      setBackendState(JSON.parse(savedState));
-    }
-    if (savedPlan) {
-      setPlanData(JSON.parse(savedPlan));
-    }
-    if (savedIsAdded) {
-      setIsAdded(JSON.parse(savedIsAdded));
+    // Load from in-memory store if available
+    if (chatStore) {
+      setMessages(chatStore.messages);
+      setBackendState(chatStore.backendState);
+      setPlanData(chatStore.planData);
+      setIsAdded(chatStore.isAdded);
+      setInput(chatStore.input);
     }
     setIsLoaded(true);
   }, []);
 
-  // Save state to sessionStorage on change
+  // Save state to in-memory store on change
   useEffect(() => {
     if (!isLoaded) return;
-
-    if (messages.length > 0) {
-      sessionStorage.setItem('chat_messages', JSON.stringify(messages));
-    }
-    if (backendState) {
-      sessionStorage.setItem('chat_backend_state', JSON.stringify(backendState));
-    }
-    if (planData) {
-      sessionStorage.setItem('chat_plan_data', JSON.stringify(planData));
-    }
-    sessionStorage.setItem('chat_plan_added', JSON.stringify(isAdded));
-  }, [messages, backendState, planData, isAdded, isLoaded]);
+    chatStore = {
+      messages,
+      backendState,
+      planData,
+      isAdded,
+      input
+    };
+  }, [messages, backendState, planData, isAdded, input, isLoaded]);
 
   const handleStartOver = async () => {
     setMessages([]);
@@ -85,11 +93,8 @@ export default function BuildPlan() {
     setInput("");
     setIsAdded(false);
 
-    // Clear session storage
-    sessionStorage.removeItem('chat_messages');
-    sessionStorage.removeItem('chat_backend_state');
-    sessionStorage.removeItem('chat_plan_data');
-    sessionStorage.removeItem('chat_plan_added');
+    // Clear in-memory store
+    chatStore = null;
 
     // Re-init chat
     try {
@@ -123,13 +128,23 @@ export default function BuildPlan() {
 
       // Success
       setIsAdded(true);
-      sessionStorage.setItem('chat_plan_added', JSON.stringify(true));
+      // sessionStorage.setItem('chat_plan_added', JSON.stringify(true));
+
+      // Clear program cache to force refresh on weekly plan
+      setCachedProgram(null);
 
       // Navigate home immediately
       router.push('/weekly-plan');
     } catch (error) {
-      console.error("Error saving plan:", error);
-      alert("Failed to save plan. Please try again.");
+      console.error("Error saving plan", error);
+      setConfirmationModal({
+        isOpen: true,
+        title: "Error",
+        message: "Failed to save plan. Please try again.",
+        onConfirm: () => { },
+        confirmText: "OK",
+        singleButton: true
+      });
     } finally {
       setIsSaving(false);
     }
@@ -138,8 +153,8 @@ export default function BuildPlan() {
   // Initial greeting - only if no saved messages
   useEffect(() => {
     const initChat = async () => {
-      // Check if we already have messages (loaded from session)
-      if (sessionStorage.getItem('chat_messages')) return;
+      // Check if we already have messages (loaded from store)
+      if (chatStore && chatStore.messages.length > 0) return;
 
       try {
         const res = await fetch(`${API_URL}/chat`, {
@@ -327,7 +342,11 @@ export default function BuildPlan() {
         </main>
 
         {/* Bottom Navigation */}
-        <nav className="absolute bottom-0 w-full bg-[#1a1f18] border-t border-white/10 flex z-40">
+        <nav
+          className="absolute bottom-0 w-full bg-[#1a1f18] border-t border-white/10 flex z-40 select-none"
+          onContextMenu={(e) => e.preventDefault()}
+          style={{ WebkitTouchCallout: 'none' } as any}
+        >
           <Link href="/" className="flex-1 py-4 flex flex-col items-center justify-center gap-1 hover:bg-[#2a3026] transition-colors">
             <span className="text-xs font-medium text-gray-400 leading-tight text-center">Daily<br />Plan</span>
           </Link>
@@ -359,7 +378,7 @@ export default function BuildPlan() {
 
                   <div className="space-y-2">
                     {/* Warmup */}
-                    {day.warmup && day.warmup.length > 0 && (
+                    {day.warmup && day.warmup.filter((s: string) => s.trim()).length > 0 && (
                       <WarmupSection data={day.warmup} />
                     )}
 
@@ -393,7 +412,7 @@ export default function BuildPlan() {
                     )}
 
                     {/* Cooldown */}
-                    {day.cooldown && day.cooldown.length > 0 && (
+                    {day.cooldown && day.cooldown.filter((s: string) => s.trim()).length > 0 && (
                       <WarmupSection data={day.cooldown} title="Cooldown" />
                     )}
                   </div>
@@ -409,8 +428,9 @@ export default function BuildPlan() {
 
 function WarmupSection({ data, title = "Warmup" }: { data: string[], title?: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const displayData = isExpanded ? data : data.slice(0, 3);
-  const hasMore = data.length > 3;
+  const validData = data.filter(s => s.trim());
+  const displayData = isExpanded ? validData : validData.slice(0, 3);
+  const hasMore = validData.length > 3;
 
   return (
     <div className="bg-[#394d26]/30 rounded-lg p-3 border border-[#394d26]">
@@ -425,7 +445,7 @@ function WarmupSection({ data, title = "Warmup" }: { data: string[], title?: str
           onClick={() => setIsExpanded(!isExpanded)}
           className="text-xs text-[#fbbf24] mt-2 hover:underline focus:outline-none"
         >
-          {isExpanded ? "Show less" : `...and ${data.length - 3} more`}
+          {isExpanded ? "Show less" : `...and ${validData.length - 3} more`}
         </button>
       )}
     </div>
