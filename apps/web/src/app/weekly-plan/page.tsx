@@ -209,7 +209,7 @@ export default function WeeklyPlan() {
                             <Dumbbell className="text-gray-500" size={48} />
                             <div>
                                 <h3 className="text-lg font-bold text-white">No Active Plan</h3>
-                                <p className="text-sm text-gray-400">Your squad needs a mission. Build a new PT plan to get started.</p>
+                                <p className="text-sm text-gray-400">Your squad needs a mission.<br />Build a new PT plan to get started.</p>
                             </div>
                             <Link href="/build-plan" className="bg-[#fbbf24] hover:bg-[#d9a51f] text-black font-bold py-3 px-6 rounded-xl shadow-lg transition-colors w-full">
                                 Build New Plan

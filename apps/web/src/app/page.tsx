@@ -150,7 +150,7 @@ export default function Home() {
               <Dumbbell className="text-gray-500" size={48} />
               <div>
                 <h3 className="text-lg font-bold text-white">No Active Plan</h3>
-                <p className="text-sm text-gray-400">Your squad needs a mission. Build a new PT plan to get started.</p>
+                <p className="text-sm text-gray-400">Your squad needs a mission.<br />Build a new PT plan to get started.</p>
               </div>
               <Link href="/build-plan" className="bg-[#fbbf24] hover:bg-[#d9a51f] text-black font-bold py-3 px-6 rounded-xl shadow-lg transition-colors w-full">
                 Build New Plan
@@ -170,7 +170,7 @@ export default function Home() {
               <div className="flex border border-white/10 rounded-lg overflow-hidden bg-[#2a3026]">
                 <div className="w-[140px] bg-[#363d31] p-3 flex flex-col items-center justify-center text-center border-r border-white/10">
                   <span className="font-bold text-sm leading-tight">Equipment Unavailable</span>
-                  <span className="text-xs text-gray-400 mt-1">1 weight missing</span>
+                  <span className="text-xs text-red-400 mt-1">1 weight missing</span>
                 </div>
                 <div className="flex-1 p-3 flex items-center justify-center text-center text-xs text-gray-300">
                   Auto-Adapt to redistribute tools
@@ -181,7 +181,7 @@ export default function Home() {
               <div className="flex border border-white/10 rounded-lg overflow-hidden bg-[#2a3026]">
                 <div className="w-[140px] bg-[#363d31] p-3 flex flex-col items-center justify-center text-center border-r border-white/10">
                   <span className="font-bold text-sm leading-tight">Soldier Conditions</span>
-                  <span className="text-xs text-gray-400 mt-1">1 soldier injured</span>
+                  <span className="text-xs text-red-400 mt-1">1 soldier injured</span>
                 </div>
                 <div className="flex-1 p-3 flex flex-col items-center justify-center text-center text-xs text-gray-300">
                   <span>1 soldier logged knee pain</span>
