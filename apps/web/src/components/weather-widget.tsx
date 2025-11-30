@@ -8,6 +8,8 @@ interface WeatherData {
     weatherCode: number;
 }
 
+let cachedWeather: WeatherData | null = null;
+
 export function WeatherWidget() {
     const [weather, setWeather] = useState<WeatherData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -19,16 +21,27 @@ export function WeatherWidget() {
 
     useEffect(() => {
         async function fetchWeather() {
+            // Check cache first
+            if (cachedWeather) {
+                setWeather(cachedWeather);
+                setLoading(false);
+                return;
+            }
+
             try {
                 const res = await fetch(
                     `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,weather_code&timezone=Europe%2FBerlin`
                 );
                 if (!res.ok) throw new Error("Weather fetch failed");
                 const data = await res.json();
-                setWeather({
+
+                const newWeather = {
                     temperature: data.current.temperature_2m,
                     weatherCode: data.current.weather_code,
-                });
+                };
+
+                setWeather(newWeather);
+                cachedWeather = newWeather; // Save to cache
             } catch (err) {
                 console.error(err);
                 setError(true);

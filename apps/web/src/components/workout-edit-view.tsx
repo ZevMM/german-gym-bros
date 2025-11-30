@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
-import { motion, AnimatePresence, PanInfo } from "framer-motion";
+import { motion, AnimatePresence, PanInfo, useAnimation } from "framer-motion";
 import { RepsSlider } from "./reps-slider";
+import { ConfirmationModal } from "./confirmation-modal";
 import clsx from "clsx";
 import { API_URL } from "@/config";
 
@@ -13,16 +14,75 @@ interface WorkoutEditViewProps {
     onSaveSuccess: () => Promise<void> | void;
 }
 
+const generateId = () => Math.random().toString(36).substr(2, 9);
+
+const ensureIds = (components: any[]) => {
+    return components.map(comp => {
+        const newComp = { ...comp, _ui_id: comp._ui_id || generateId() };
+        if (comp.component_type === 'circuit' && comp.data && Array.isArray(comp.data.exercises)) {
+            newComp.data = {
+                ...comp.data,
+                exercises: comp.data.exercises.map((ex: any) => ({
+                    ...ex,
+                    _ui_id: ex._ui_id || generateId()
+                }))
+            };
+        }
+        return newComp;
+    });
+};
+
+const ensureStructure = (components: any[]) => {
+    let withIds = ensureIds(components);
+
+    // Ensure Warmup
+    if (!withIds.some(c => c.component_type === 'warmup')) {
+        withIds.unshift({ component_type: 'warmup', data: [], _ui_id: generateId() });
+    }
+
+    // Ensure Cooldown
+    if (!withIds.some(c => c.component_type === 'cooldown')) {
+        withIds.push({ component_type: 'cooldown', data: [], _ui_id: generateId() });
+    }
+
+    return withIds;
+};
+
+const stripIds = (components: any[]) => {
+    return components.map(({ _ui_id, ...comp }) => {
+        if (comp.component_type === 'circuit' && comp.data && Array.isArray(comp.data.exercises)) {
+            return {
+                ...comp,
+                data: {
+                    ...comp.data,
+                    exercises: comp.data.exercises.map(({ _ui_id, ...ex }: any) => ex)
+                }
+            };
+        }
+        return comp;
+    });
+};
+
 export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEditViewProps) {
-    const [components, setComponents] = useState<any[]>(JSON.parse(JSON.stringify(workout.components)));
+    const [components, setComponents] = useState<any[]>(ensureStructure(JSON.parse(JSON.stringify(workout.components))));
     const [isDirty, setIsDirty] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [activeRepsEditor, setActiveRepsEditor] = useState<{ componentIndex: number, exerciseIndex: number, currentReps: string } | null>(null);
+    const [activeRepsEditor, setActiveRepsEditor] = useState<{ componentIndex: number, exerciseIndex: number, currentReps: string, componentId?: string } | null>(null);
+    const [confirmationModal, setConfirmationModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        isDestructive?: boolean;
+        confirmText?: string;
+    } | null>(null);
 
     // Deep compare to check dirty state
     useEffect(() => {
+        // Strip IDs before comparing to avoid false positives if IDs change (though they shouldn't)
+        // Actually, we just want to compare the data content.
         const original = JSON.stringify(workout.components);
-        const current = JSON.stringify(components);
+        const current = JSON.stringify(stripIds(components));
         setIsDirty(original !== current);
     }, [components, workout.components]);
 
@@ -32,7 +92,7 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
             const res = await fetch(`${API_URL}/workout/${workout.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ components }),
+                body: JSON.stringify({ components: stripIds(components) }),
             });
 
             if (res.ok) {
@@ -50,57 +110,81 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
 
     const handleCancelClick = () => {
         if (isDirty) {
-            if (confirm("You have unsaved changes. Are you sure you want to discard them?")) {
-                onCancel();
-            }
+            setConfirmationModal({
+                isOpen: true,
+                title: "Discard Changes?",
+                message: "You have unsaved changes. Are you sure you want to discard them?",
+                confirmText: "Discard",
+                isDestructive: true,
+                onConfirm: onCancel
+            });
         } else {
             onCancel();
         }
     };
 
-    const updateComponent = (index: number, newData: any) => {
-        const newComponents = [...components];
-        newComponents[index] = { ...newComponents[index], data: newData };
-        setComponents(newComponents);
+    const updateComponent = (id: string, newData: any) => {
+        setComponents(prev => prev.map(c => c._ui_id === id ? { ...c, data: newData } : c));
     };
 
-    const removeComponent = (index: number) => {
-        if (confirm("Delete this entire section?")) {
-            const newComponents = components.filter((_, i) => i !== index);
-            setComponents(newComponents);
-        }
+    const removeComponent = (id: string) => {
+        setConfirmationModal({
+            isOpen: true,
+            title: "Delete Section?",
+            message: "Are you sure you want to delete it?",
+            confirmText: "Delete",
+            isDestructive: true,
+            onConfirm: () => {
+                setComponents(prev => prev.filter(c => c._ui_id !== id));
+            }
+        });
     };
 
     // --- Warmup / Cooldown Helpers ---
-    const handleTextChange = (index: number, text: string) => {
+    const handleTextChange = (id: string, text: string) => {
         const lines = text.split('\n');
-        updateComponent(index, lines);
+        updateComponent(id, lines);
     };
 
     // --- Circuit Helpers ---
-    const updateCircuitField = (compIndex: number, field: string, value: string) => {
-        const comp = components[compIndex];
-        const newData = { ...comp.data, [field]: parseInt(value) || 0 };
-        updateComponent(compIndex, newData);
+    const updateCircuitField = (id: string, field: string, value: string) => {
+        setComponents(prev => prev.map(c => {
+            if (c._ui_id === id) {
+                return { ...c, data: { ...c.data, [field]: parseInt(value) || 0 } };
+            }
+            return c;
+        }));
     };
 
-    const updateExercise = (compIndex: number, exIndex: number, field: string, value: any) => {
-        const comp = components[compIndex];
-        const newExercises = [...comp.data.exercises];
-        newExercises[exIndex] = { ...newExercises[exIndex], [field]: value };
-        updateComponent(compIndex, { ...comp.data, exercises: newExercises });
+    const updateExercise = (compId: string, exIndex: number, field: string, value: any) => {
+        setComponents(prev => prev.map(c => {
+            if (c._ui_id === compId) {
+                const newExercises = [...c.data.exercises];
+                newExercises[exIndex] = { ...newExercises[exIndex], [field]: value };
+                return { ...c, data: { ...c.data, exercises: newExercises } };
+            }
+            return c;
+        }));
     };
 
-    const addExercise = (compIndex: number) => {
-        const comp = components[compIndex];
-        const newExercises = [...comp.data.exercises, { name: "New Exercise", reps: "10", equipment: [] }];
-        updateComponent(compIndex, { ...comp.data, exercises: newExercises });
+    const addExercise = (compId: string) => {
+        setComponents(prev => prev.map(c => {
+            if (c._ui_id === compId) {
+                const newExercises = [...c.data.exercises, { name: "New Exercise", reps: "10", equipment: [], _ui_id: generateId() }];
+                return { ...c, data: { ...c.data, exercises: newExercises } };
+            }
+            return c;
+        }));
     };
 
-    const removeExercise = (compIndex: number, exIndex: number) => {
-        const comp = components[compIndex];
-        const newExercises = comp.data.exercises.filter((_: any, i: number) => i !== exIndex);
-        updateComponent(compIndex, { ...comp.data, exercises: newExercises });
+    const removeExercise = (compId: string, exIndex: number) => {
+        setComponents(prev => prev.map(c => {
+            if (c._ui_id === compId) {
+                const newExercises = c.data.exercises.filter((_: any, i: number) => i !== exIndex);
+                return { ...c, data: { ...c.data, exercises: newExercises } };
+            }
+            return c;
+        }));
     };
 
     const addCircuit = () => {
@@ -112,10 +196,13 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
                 work_seconds: 45,
                 rest_seconds: 15,
                 rest_between_rounds: 60,
-                exercises: [{ name: "New Exercise", reps: "10", equipment: [] }]
-            }
+                exercises: [{ name: "New Exercise", reps: "10", equipment: [], _ui_id: generateId() }]
+            },
+            _ui_id: generateId()
         };
-        // Insert before cardio or cooldown if exists, else append
+
+        // Insert logic: Warmup -> Circuits -> [New Circuit] -> Cardio -> Cooldown
+        // We can just append it to the circuits list effectively by inserting before cardio or cooldown.
         const cardioIndex = components.findIndex(c => c.component_type === 'cardio');
         const cooldownIndex = components.findIndex(c => c.component_type === 'cooldown');
 
@@ -132,23 +219,36 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
     };
 
     // --- Equipment Helpers ---
-    const addEquipment = (compIndex: number, exIndex: number, eqName: string) => {
+    const addEquipment = (compId: string, exIndex: number, eqName: string) => {
         if (!eqName.trim()) return;
-        const comp = components[compIndex];
-        const currentEq = comp.data.exercises[exIndex].equipment || [];
-        if (!currentEq.includes(eqName.trim())) {
-            updateExercise(compIndex, exIndex, 'equipment', [...currentEq, eqName.trim()]);
-        }
+        setComponents(prev => prev.map(c => {
+            if (c._ui_id === compId) {
+                const currentEq = c.data.exercises[exIndex].equipment || [];
+                if (!currentEq.includes(eqName.trim())) {
+                    const newExercises = [...c.data.exercises];
+                    newExercises[exIndex] = { ...newExercises[exIndex], equipment: [...currentEq, eqName.trim()] };
+                    return { ...c, data: { ...c.data, exercises: newExercises } };
+                }
+            }
+            return c;
+        }));
     };
 
-    const removeEquipment = (compIndex: number, exIndex: number, eqName: string) => {
-        const comp = components[compIndex];
-        const currentEq = comp.data.exercises[exIndex].equipment || [];
-        updateExercise(compIndex, exIndex, 'equipment', currentEq.filter((e: string) => e !== eqName));
+    const removeEquipment = (compId: string, exIndex: number, eqName: string) => {
+        setComponents(prev => prev.map(c => {
+            if (c._ui_id === compId) {
+                const currentEq = c.data.exercises[exIndex].equipment || [];
+                const newExercises = [...c.data.exercises];
+                newExercises[exIndex] = { ...newExercises[exIndex], equipment: currentEq.filter((e: string) => e !== eqName) };
+                return { ...c, data: { ...c.data, exercises: newExercises } };
+            }
+            return c;
+        }));
     };
 
     const hasCircuits = components.some(c => c.component_type === 'circuit');
     const hasCooldown = components.some(c => c.component_type === 'cooldown');
+    const hasCardio = components.some(c => c.component_type === 'cardio');
 
     const AddCircuitButton = () => (
         <button
@@ -185,193 +285,198 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-thin scrollbar-thumb-gray-600 pb-32">
 
-                {components.map((comp, i) => {
-                    if (comp.component_type === 'warmup') {
-                        return (
-                            <div key={i} className="space-y-3">
-                                <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider border-b border-white/10 pb-1">Warm Up</h3>
-                                <div className="bg-[#363d31] rounded-xl p-4 border border-white/5 shadow-sm">
-                                    <textarea
-                                        value={Array.isArray(comp.data) ? comp.data.join('\n') : comp.data}
-                                        onChange={(e) => handleTextChange(i, e.target.value)}
-                                        className="w-full bg-transparent text-sm text-gray-200 focus:outline-none resize-none min-h-[100px]"
-                                        placeholder="Enter warmup exercises (one per line)..."
-                                    />
-                                </div>
+                {/* Warmup */}
+                {components.filter(c => c.component_type === 'warmup').map((comp) => (
+                    <div key={comp._ui_id} className="space-y-3">
+                        <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider border-b border-white/10 pb-1">Warm Up</h3>
+                        <div className="bg-[#363d31] rounded-xl p-4 border border-white/5 shadow-sm">
+                            <textarea
+                                value={Array.isArray(comp.data) ? comp.data.join('\n') : comp.data}
+                                onChange={(e) => handleTextChange(comp._ui_id, e.target.value)}
+                                className="w-full bg-transparent text-base md:text-sm text-gray-200 focus:outline-none resize-none min-h-[100px]"
+                                placeholder="Enter warmup exercises (one per line)..."
+                            />
+                        </div>
+                    </div>
+                ))}
+
+                {/* Circuits */}
+                {/* Header for Circuits if none exist */}
+                {!hasCircuits && (
+                    <div className="flex justify-between items-end border-b border-white/10 pb-1 mb-3">
+                        <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider">Circuits</h3>
+                    </div>
+                )}
+
+                <AnimatePresence mode="popLayout">
+                    {components.filter(c => c.component_type === 'circuit').map((comp, i) => (
+                        <motion.div
+                            layout
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.3 }}
+                            key={comp._ui_id}
+                            className="space-y-3 overflow-hidden"
+                        >
+                            <div className="flex justify-between items-end border-b border-white/10 pb-1">
+                                <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider">Circuit {i + 1}</h3>
+                                <button onClick={() => removeComponent(comp._ui_id)} className="text-red-400 text-xs hover:text-red-300 pb-1">Delete Circuit</button>
                             </div>
-                        );
-                    }
 
-                    if (comp.component_type === 'cooldown') {
-                        return (
-                            <div key={i} className="space-y-3">
-                                {!hasCircuits && <AddCircuitButton />}
-                                <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider border-b border-white/10 pb-1">Cooldown</h3>
-                                <div className="bg-[#363d31] rounded-xl p-4 border border-white/5 shadow-sm">
-                                    <textarea
-                                        value={Array.isArray(comp.data) ? comp.data.join('\n') : comp.data}
-                                        onChange={(e) => handleTextChange(i, e.target.value)}
-                                        className="w-full bg-transparent text-sm text-gray-200 focus:outline-none resize-none min-h-[100px]"
-                                        placeholder="Enter cooldown exercises (one per line)..."
-                                    />
-                                </div>
-                            </div>
-                        );
-                    }
-
-                    if (comp.component_type === 'circuit') {
-                        const isLastCircuit = !components.slice(i + 1).some(c => c.component_type === 'circuit');
-                        return (
-                            <div key={i} className="space-y-3">
-                                <div className="flex justify-between items-end border-b border-white/10 pb-1">
-                                    <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider">Circuit {comp.order_index}</h3>
-                                    <button onClick={() => removeComponent(i)} className="text-red-400 text-xs hover:text-red-300 pb-1">Delete Circuit</button>
-                                </div>
-
-                                <div className="bg-[#363d31] rounded-xl overflow-hidden border border-white/5 shadow-sm">
-                                    {/* Circuit Header Inputs */}
-                                    <div className="bg-[#2a3026] p-3 border-b border-white/5 grid grid-cols-4 gap-2">
-                                        <div className="flex flex-col gap-1">
-                                            <label className="text-[10px] text-gray-400 uppercase">{comp.data.rounds === 1 ? 'Round' : 'Rounds'}</label>
-                                            <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                pattern="[0-9]*"
-                                                value={comp.data.rounds}
-                                                onChange={(e) => updateCircuitField(i, 'rounds', e.target.value)}
-                                                className="bg-black/20 rounded px-2 py-1 text-white text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-[#fbbf24]"
-                                            />
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <label className="text-[10px] text-gray-400 uppercase">Work(s)</label>
-                                            <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                pattern="[0-9]*"
-                                                value={comp.data.work_seconds}
-                                                onChange={(e) => updateCircuitField(i, 'work_seconds', e.target.value)}
-                                                className="bg-black/20 rounded px-2 py-1 text-white text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-[#fbbf24]"
-                                            />
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <label className="text-[10px] text-gray-400 uppercase">Rest(s)</label>
-                                            <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                pattern="[0-9]*"
-                                                value={comp.data.rest_seconds}
-                                                onChange={(e) => updateCircuitField(i, 'rest_seconds', e.target.value)}
-                                                className="bg-black/20 rounded px-2 py-1 text-white text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-[#fbbf24]"
-                                            />
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <label className="text-[10px] text-gray-400 uppercase">R.Rest(s)</label>
-                                            <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                pattern="[0-9]*"
-                                                value={comp.data.rest_between_rounds}
-                                                onChange={(e) => updateCircuitField(i, 'rest_between_rounds', e.target.value)}
-                                                className="bg-black/20 rounded px-2 py-1 text-white text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-[#fbbf24]"
-                                            />
-                                        </div>
+                            <div className="bg-[#363d31] rounded-xl overflow-hidden border border-white/5 shadow-sm">
+                                {/* Circuit Header Inputs */}
+                                <div className="bg-[#2a3026] p-3 border-b border-white/5 grid grid-cols-4 gap-2">
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] text-gray-400 uppercase">{comp.data.rounds === 1 ? 'Round' : 'Rounds'}</label>
+                                        <input
+                                            type="number"
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
+                                            value={comp.data.rounds}
+                                            onChange={(e) => updateCircuitField(comp._ui_id, 'rounds', e.target.value)}
+                                            className="bg-black/20 rounded px-2 py-1 text-white text-base md:text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-[#fbbf24]"
+                                        />
                                     </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] text-gray-400 uppercase">Work(s)</label>
+                                        <input
+                                            type="number"
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
+                                            value={comp.data.work_seconds}
+                                            onChange={(e) => updateCircuitField(comp._ui_id, 'work_seconds', e.target.value)}
+                                            className="bg-black/20 rounded px-2 py-1 text-white text-base md:text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-[#fbbf24]"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] text-gray-400 uppercase">Rest(s)</label>
+                                        <input
+                                            type="number"
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
+                                            value={comp.data.rest_seconds}
+                                            onChange={(e) => updateCircuitField(comp._ui_id, 'rest_seconds', e.target.value)}
+                                            className="bg-black/20 rounded px-2 py-1 text-white text-base md:text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-[#fbbf24]"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] text-gray-400 uppercase">R.Rest(s)</label>
+                                        <input
+                                            type="number"
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
+                                            value={comp.data.rest_between_rounds}
+                                            onChange={(e) => updateCircuitField(comp._ui_id, 'rest_between_rounds', e.target.value)}
+                                            className="bg-black/20 rounded px-2 py-1 text-white text-base md:text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-[#fbbf24]"
+                                        />
+                                    </div>
+                                </div>
 
-                                    {/* Exercises List */}
-                                    <div className="divide-y divide-white/5">
-                                        <AnimatePresence initial={false}>
-                                            {comp.data.exercises.map((ex: any, exIdx: number) => (
-                                                <SwipeToDeleteItem
-                                                    key={`${i}-${exIdx}`}
-                                                    onDelete={() => removeExercise(i, exIdx)}
-                                                >
-                                                    <div className="p-3 flex flex-col gap-2">
-                                                        <div className="flex items-start justify-between gap-4">
-                                                            <input
-                                                                type="text"
-                                                                value={ex.name}
-                                                                onChange={(e) => updateExercise(i, exIdx, 'name', e.target.value)}
-                                                                className="bg-transparent text-sm font-medium text-white focus:outline-none focus:border-b focus:border-[#fbbf24] w-full"
-                                                                placeholder="Exercise Name"
-                                                            />
-                                                            <button
-                                                                onClick={() => setActiveRepsEditor({ componentIndex: i, exerciseIndex: exIdx, currentReps: ex.reps })}
-                                                                className="text-sm font-mono text-[#fbbf24] whitespace-nowrap bg-[#fbbf24]/10 px-2 py-1 rounded hover:bg-[#fbbf24]/20 transition-colors"
-                                                            >
-                                                                {ex.reps} {ex.reps === '1' || ex.reps === 1 ? 'rep' : 'reps'}
-                                                            </button>
-                                                        </div>
-
-                                                        {/* Equipment Chips */}
-                                                        <div className="flex flex-wrap gap-2 items-center">
-                                                            {(ex.equipment || []).map((eq: string, eqIdx: number) => (
-                                                                <span key={eqIdx} className="inline-flex items-center gap-1 text-[10px] bg-white/10 text-gray-300 px-2 py-0.5 rounded-full capitalize">
-                                                                    {eq}
-                                                                    <button
-                                                                        onClick={() => removeEquipment(i, exIdx, eq)}
-                                                                        className="hover:text-white"
-                                                                    >
-                                                                        <X size={10} />
-                                                                    </button>
-                                                                </span>
-                                                            ))}
-                                                            <input
-                                                                type="text"
-                                                                placeholder="+ Add Eq"
-                                                                className="bg-transparent text-[10px] text-gray-500 focus:text-white focus:outline-none min-w-[60px]"
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') {
-                                                                        addEquipment(i, exIdx, e.currentTarget.value);
-                                                                        e.currentTarget.value = '';
-                                                                    }
-                                                                }}
-                                                            />
-                                                        </div>
+                                {/* Exercises List */}
+                                <div className="divide-y divide-white/5">
+                                    <AnimatePresence initial={false}>
+                                        {comp.data.exercises.map((ex: any, exIdx: number) => (
+                                            <SwipeToDeleteItem
+                                                key={ex._ui_id || `${comp._ui_id}-${exIdx}`}
+                                                onDelete={() => removeExercise(comp._ui_id, exIdx)}
+                                            >
+                                                <div className="p-3 flex flex-col gap-2">
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <input
+                                                            type="text"
+                                                            value={ex.name}
+                                                            onChange={(e) => updateExercise(comp._ui_id, exIdx, 'name', e.target.value)}
+                                                            className="bg-transparent text-base md:text-sm font-medium text-white focus:outline-none focus:border-b focus:border-[#fbbf24] w-full"
+                                                            placeholder="Exercise Name"
+                                                        />
+                                                        <button
+                                                            onClick={() => setActiveRepsEditor({ componentIndex: -1, exerciseIndex: exIdx, currentReps: ex.reps, componentId: comp._ui_id })}
+                                                            className="text-sm font-mono text-[#fbbf24] whitespace-nowrap bg-[#fbbf24]/10 px-2 py-1 rounded hover:bg-[#fbbf24]/20 transition-colors"
+                                                        >
+                                                            {ex.reps} {ex.reps === '1' || ex.reps === 1 ? 'rep' : 'reps'}
+                                                        </button>
                                                     </div>
-                                                </SwipeToDeleteItem>
-                                            ))}
-                                        </AnimatePresence>
-                                    </div>
 
-                                    {/* Add Workout Button */}
-                                    <button
-                                        onClick={() => addExercise(i)}
-                                        className="w-full py-3 flex items-center justify-center gap-2 text-xs font-bold text-[#fbbf24] bg-[#fbbf24]/5 hover:bg-[#fbbf24]/10 transition-colors border-t border-white/5"
-                                    >
-                                        <Plus size={14} />
-                                        ADD WORKOUT
-                                    </button>
+                                                    {/* Equipment Chips */}
+                                                    <div className="flex flex-wrap gap-2 items-center">
+                                                        {(ex.equipment || []).map((eq: string, eqIdx: number) => (
+                                                            <span key={eqIdx} className="inline-flex items-center gap-1 text-[10px] bg-white/10 text-gray-300 px-2 py-0.5 rounded-full capitalize">
+                                                                {eq}
+                                                                <button
+                                                                    onClick={() => removeEquipment(comp._ui_id, exIdx, eq)}
+                                                                    className="hover:text-white"
+                                                                >
+                                                                    <X size={10} />
+                                                                </button>
+                                                            </span>
+                                                        ))}
+                                                        <input
+                                                            type="text"
+                                                            placeholder="+ Add Eq"
+                                                            className="bg-transparent text-base md:text-[10px] text-gray-500 focus:text-white focus:outline-none min-w-[60px]"
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    addEquipment(comp._ui_id, exIdx, e.currentTarget.value);
+                                                                    e.currentTarget.value = '';
+                                                                }
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </SwipeToDeleteItem>
+                                        ))}
+                                    </AnimatePresence>
                                 </div>
-                                {isLastCircuit && <AddCircuitButton />}
+
+                                {/* Add Workout Button */}
+                                <button
+                                    onClick={() => addExercise(comp._ui_id)}
+                                    className="w-full py-3 flex items-center justify-center gap-2 text-xs font-bold text-[#fbbf24] bg-[#fbbf24]/5 hover:bg-[#fbbf24]/10 transition-colors border-t border-white/5"
+                                >
+                                    <Plus size={14} />
+                                    ADD WORKOUT
+                                </button>
                             </div>
-                        );
-                    }
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
 
-                    if (comp.component_type === 'cardio') {
-                        return (
-                            <div key={i} className="space-y-3">
-                                <div className="flex justify-between items-end border-b border-white/10 pb-1">
-                                    <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider">Cardio</h3>
-                                    <button onClick={() => removeComponent(i)} className="text-red-400 text-xs hover:text-red-300 pb-1">Delete Cardio</button>
-                                </div>
-                                <div className="bg-[#363d31] rounded-xl p-4 border border-white/5 shadow-sm space-y-3 opacity-75">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h4 className="text-white font-bold text-lg">{comp.data.type}</h4>
-                                            <div className="text-sm text-[#fbbf24]">{comp.data.duration_minutes} Minutes</div>
-                                        </div>
-                                    </div>
-                                    <div className="text-xs text-gray-500 italic">Cardio details are read-only for now.</div>
+                <AddCircuitButton />
+
+                {/* Cardio */}
+                {components.filter(c => c.component_type === 'cardio').map((comp) => (
+                    <div key={comp._ui_id} className="space-y-3">
+                        <div className="flex justify-between items-end border-b border-white/10 pb-1">
+                            <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider">Cardio</h3>
+                            <button onClick={() => removeComponent(comp._ui_id)} className="text-red-400 text-xs hover:text-red-300 pb-1">Delete Cardio</button>
+                        </div>
+                        <div className="bg-[#363d31] rounded-xl p-4 border border-white/5 shadow-sm space-y-3 opacity-75">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h4 className="text-white font-bold text-lg">{comp.data.type}</h4>
+                                    <div className="text-sm text-[#fbbf24]">{comp.data.duration_minutes} Minutes</div>
                                 </div>
                             </div>
-                        );
-                    }
+                            <div className="text-xs text-gray-500 italic">Cardio details are read-only for now.</div>
+                        </div>
+                    </div>
+                ))}
 
-                    return null;
-                })}
-
-                {/* Fallback Add Circuit Button if no circuits and no cooldown */}
-                {!hasCircuits && !hasCooldown && <AddCircuitButton />}
+                {/* Cooldown */}
+                {components.filter(c => c.component_type === 'cooldown').map((comp) => (
+                    <div key={comp._ui_id} className="space-y-3">
+                        <h3 className="text-[#fbbf24] font-bold text-lg uppercase tracking-wider border-b border-white/10 pb-1">Cooldown</h3>
+                        <div className="bg-[#363d31] rounded-xl p-4 border border-white/5 shadow-sm">
+                            <textarea
+                                value={Array.isArray(comp.data) ? comp.data.join('\n') : comp.data}
+                                onChange={(e) => handleTextChange(comp._ui_id, e.target.value)}
+                                className="w-full bg-transparent text-base md:text-sm text-gray-200 focus:outline-none resize-none min-h-[100px]"
+                                placeholder="Enter cooldown exercises (one per line)..."
+                            />
+                        </div>
+                    </div>
+                ))}
 
             </div>
 
@@ -381,18 +486,34 @@ export function WorkoutEditView({ workout, onCancel, onSaveSuccess }: WorkoutEdi
                     <RepsSlider
                         initialReps={activeRepsEditor.currentReps}
                         onSave={(newReps) => {
-                            updateExercise(activeRepsEditor.componentIndex, activeRepsEditor.exerciseIndex, 'reps', newReps);
+                            if (activeRepsEditor.componentId) {
+                                updateExercise(activeRepsEditor.componentId, activeRepsEditor.exerciseIndex, 'reps', newReps);
+                            }
                         }}
                         onClose={() => setActiveRepsEditor(null)}
                     />
                 )}
             </AnimatePresence>
+
+            {/* Confirmation Modal */}
+            {confirmationModal && (
+                <ConfirmationModal
+                    isOpen={confirmationModal.isOpen}
+                    onClose={() => setConfirmationModal(null)}
+                    onConfirm={confirmationModal.onConfirm}
+                    title={confirmationModal.title}
+                    message={confirmationModal.message}
+                    confirmText={confirmationModal.confirmText}
+                    isDestructive={confirmationModal.isDestructive}
+                />
+            )}
         </div>
     );
 }
 
 function SwipeToDeleteItem({ children, onDelete }: { children: React.ReactNode, onDelete: () => void }) {
     const [isDeleting, setIsDeleting] = useState(false);
+    const controls = useAnimation();
 
     // Threshold to trigger delete
     const DELETE_THRESHOLD = -100;
@@ -401,6 +522,8 @@ function SwipeToDeleteItem({ children, onDelete }: { children: React.ReactNode, 
         if (info.offset.x < DELETE_THRESHOLD) {
             setIsDeleting(true);
             setTimeout(onDelete, 200); // Wait for animation
+        } else {
+            controls.start({ x: 0 });
         }
     };
 
@@ -416,6 +539,7 @@ function SwipeToDeleteItem({ children, onDelete }: { children: React.ReactNode, 
                 drag="x"
                 dragConstraints={{ left: -200, right: 0 }}
                 onDragEnd={handleDragEnd}
+                animate={controls}
                 className="relative z-10 bg-[#363d31]"
             >
                 {children}

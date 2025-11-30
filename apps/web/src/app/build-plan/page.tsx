@@ -3,6 +3,7 @@
 import { ChevronLeft, Star, X, Send, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
+import { useScrollSave } from "@/hooks/use-scroll-save";
 
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/config";
@@ -19,19 +20,24 @@ export default function BuildPlan() {
   const [backendState, setBackendState] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (shouldAutoScroll) {
+      scrollToBottom();
+      setShouldAutoScroll(false);
+    }
+  }, [messages, shouldAutoScroll]);
 
   const [planData, setPlanData] = useState<any>(null);
   const [showPlan, setShowPlan] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const scrollRef = useScrollSave("chat-scroll", isLoaded);
 
   // Load state from sessionStorage on mount
   useEffect(() => {
@@ -158,6 +164,7 @@ export default function BuildPlan() {
     const userMsg = input;
     setInput("");
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setShouldAutoScroll(true);
     setIsLoading(true);
 
     try {
@@ -169,6 +176,7 @@ export default function BuildPlan() {
       const data = await res.json();
 
       setMessages(prev => [...prev, { role: 'ai', text: data.message }]);
+      setShouldAutoScroll(true);
       setBackendState(data.state);
 
       if (data.is_complete) {
@@ -238,7 +246,7 @@ export default function BuildPlan() {
           {/* Chat Section */}
           <div className="flex-1 flex flex-col min-h-0">
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-gray-600">
+            <div ref={scrollRef as any} className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-gray-600">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-2xl p-4 border border-white/5 shadow-sm whitespace-pre-wrap ${msg.role === 'user'

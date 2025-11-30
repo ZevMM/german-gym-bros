@@ -5,19 +5,32 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { WeatherWidget } from "@/components/weather-widget";
 import { WorkoutDetailView } from "@/components/workout-detail-view";
+import { getCachedProgram, setCachedProgram } from "@/lib/program-cache";
+import { useScrollSave } from "@/hooks/use-scroll-save";
 
 import { API_URL } from "@/config";
 
 export default function Home() {
-  const [activeProgram, setActiveProgram] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [activeProgram, setActiveProgram] = useState<any>(getCachedProgram());
+  const [isLoading, setIsLoading] = useState(!getCachedProgram());
+  const scrollRef = useScrollSave("daily-plan-scroll", !isLoading);
 
-  const fetchProgram = async () => {
+  const fetchProgram = async (force: boolean = false) => {
     try {
+      if (!force) {
+        const cached = getCachedProgram();
+        if (cached) {
+          setActiveProgram(cached);
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const res = await fetch(`${API_URL}/active-program?t=${Date.now()}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setActiveProgram(data);
+        setCachedProgram(data);
       }
     } catch (error) {
       console.error("Failed to fetch active program", error);
@@ -128,7 +141,7 @@ export default function Home() {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 px-4 overflow-y-auto pb-24">
+        <main ref={scrollRef as any} className="flex-1 px-4 overflow-y-auto pb-24">
 
           {/* PT Schedule Table or Empty State */}
           {isLoading ? (
@@ -227,7 +240,7 @@ export default function Home() {
           <WorkoutDetailView
             workout={todaysWorkout}
             onClose={() => setShowDetail(false)}
-            onRefresh={fetchProgram}
+            onRefresh={() => fetchProgram(true)}
           />
         )}
 

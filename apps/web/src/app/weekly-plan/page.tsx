@@ -3,21 +3,42 @@
 import { Star, ArrowLeft, Calendar, Dumbbell, Edit2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
+import { useScrollSave } from "@/hooks/use-scroll-save";
 
 import { WorkoutDetailView } from "@/components/workout-detail-view";
+import { getCachedProgram, setCachedProgram } from "@/lib/program-cache";
 import { API_URL } from "@/config";
 
 export default function WeeklyPlan() {
-    const [activeProgram, setActiveProgram] = useState<any>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [activeProgram, setActiveProgram] = useState<any>(getCachedProgram());
+    const [isLoading, setIsLoading] = useState(!getCachedProgram());
     const [selectedWorkout, setSelectedWorkout] = useState<any>(null);
+    const scrollRef = useScrollSave("weekly-plan-scroll", !isLoading);
 
-    const fetchProgram = async () => {
+    const fetchProgram = async (force: boolean = false) => {
         try {
+            if (!force) {
+                const cached = getCachedProgram();
+                if (cached) {
+                    setActiveProgram(cached);
+
+                    // Update selectedWorkout if it exists to ensure detail view shows fresh data
+                    if (selectedWorkout) {
+                        const updatedWorkout = cached.workouts.find((w: any) => w.id === selectedWorkout.id);
+                        if (updatedWorkout) {
+                            setSelectedWorkout(updatedWorkout);
+                        }
+                    }
+                    setIsLoading(false);
+                    return;
+                }
+            }
+
             const res = await fetch(`${API_URL}/active-program?t=${Date.now()}`, { cache: "no-store" });
             if (res.ok) {
                 const data = await res.json();
                 setActiveProgram(data);
+                setCachedProgram(data);
 
                 // Update selectedWorkout if it exists to ensure detail view shows fresh data
                 if (selectedWorkout) {
@@ -51,7 +72,7 @@ export default function WeeklyPlan() {
 
             if (res.ok) {
                 // Refresh data
-                fetchProgram();
+                fetchProgram(true);
                 setConfirmDeleteId(null);
             } else {
                 alert("Failed to delete workout");
@@ -82,7 +103,7 @@ export default function WeeklyPlan() {
                 </header>
 
                 {/* Main Content */}
-                <main className="flex-1 px-4 overflow-y-auto pb-24 pt-4">
+                <main ref={scrollRef as any} className="flex-1 px-4 overflow-y-auto pb-24 pt-4">
 
                     {isLoading ? (
                         <div className="flex items-center justify-center h-40 text-gray-400">Loading plan...</div>
@@ -253,7 +274,7 @@ export default function WeeklyPlan() {
                     <WorkoutDetailView
                         workout={selectedWorkout}
                         onClose={() => setSelectedWorkout(null)}
-                        onRefresh={fetchProgram}
+                        onRefresh={() => fetchProgram(true)}
                     />
                 )}
 
