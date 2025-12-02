@@ -134,7 +134,7 @@ export default function BuildPlan() {
       setCachedProgram(null);
 
       // Navigate home immediately
-      router.push('/weekly-plan');
+      router.push('/');
     } catch (error) {
       console.error("Error saving plan", error);
       setConfirmationModal({
@@ -231,32 +231,11 @@ export default function BuildPlan() {
           </button>
         </header>
 
-        {/* Objective & Constraints Bar */}
-        <div className="bg-[#394d26] py-2 flex items-center justify-center m-4 rounded-md shadow-sm shrink-0">
-          <h2 className="text-white text-lg font-medium">Objective & Constraints</h2>
+        <div className=" py-2 flex items-center justify-center m-1 rounded-md shrink-0">
         </div>
 
         {/* Main Content */}
         <main className="flex-1 px-6 flex flex-col overflow-hidden relative pb-20">
-
-          {/* Static Form Fields (Visual Only for now as per design) */}
-          <div className="space-y-4 mb-6 shrink-0">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-gray-300 text-sm ml-1">PT Test</label>
-                <div className="bg-[#363d31] rounded-lg h-10 flex items-center justify-between px-3 border border-white/5">
-                  <span className="text-white">ACFT</span>
-                  <ChevronLeft className="rotate-[-90deg] text-white/50" size={16} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-gray-300 text-sm ml-1">Test Date</label>
-                <div className="bg-[#363d31] rounded-lg h-10 flex items-center justify-center px-3 border border-white/5">
-                  <span className="text-white">03/08/2026</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Chat Section */}
           <div className="flex-1 flex flex-col min-h-0">
@@ -348,10 +327,7 @@ export default function BuildPlan() {
           style={{ WebkitTouchCallout: 'none' } as any}
         >
           <Link href="/" className="flex-1 py-4 flex flex-col items-center justify-center gap-1 hover:bg-[#2a3026] transition-colors">
-            <span className="text-xs font-medium text-gray-400 leading-tight text-center">Daily<br />Plan</span>
-          </Link>
-          <Link href="/weekly-plan" className="flex-1 py-4 flex flex-col items-center justify-center gap-1 hover:bg-[#2a3026] transition-colors">
-            <span className="text-xs font-medium text-gray-400 leading-tight text-center">Weekly<br />Plan</span>
+            <span className="text-xs font-medium text-gray-400 leading-tight text-center">Current<br />Plan</span>
           </Link>
           <button className="flex-1 py-4 flex flex-col items-center justify-center gap-1 bg-[#2a3026]">
             <span className="text-xs font-bold text-white leading-tight text-center">Build<br />New Plan</span>
