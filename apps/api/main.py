@@ -14,10 +14,10 @@ from engine import (
 from database import init_db, save_program_to_db, get_latest_program, delete_workout
 
 # Configure the Gemini API
-# Make sure to set the GOOGLE_API_KEY environment variable
+# Make sure to set the GEMINI_API_KEY environment variable
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
-    raise ValueError("GOOGLE_API_KEY environment variable not set")
+    raise ValueError("GEMINI_API_KEY environment variable not set")
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-2.0-flash')
 
